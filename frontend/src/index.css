@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 225 25% 3%;
+    --foreground: 210 20% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+    --muted: 223 47% 6%;
+    --muted-foreground: 215 20% 65%;
+    --border: 216 34% 10%;
+    --highlight: 224 71% 45%;
+  }
+}
+
+@keyframes shine {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shine {
+  animation: shine 2s infinite;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: hsl(225 25% 3%);
+  background-image: 
+    radial-gradient(circle at top left, rgba(29, 78, 216, 0.08), transparent 40%),
+    radial-gradient(circle at bottom right, rgba(30, 64, 175, 0.08), transparent 40%);
+  color: hsl(210 20% 98%);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: hsl(var(--highlight) / 0.9);
+  color: white;
+}
