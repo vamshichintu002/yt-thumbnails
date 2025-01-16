@@ -59,21 +59,70 @@ export function Dashboard() {
   };
 
   const generateThumbnails = async () => {
-    if (!title.trim()) {
-      setError('Please enter a title first');
-      return;
-    }
-
     try {
       setIsGenerating(true);
       setError(null);
 
-      const response = await fetch('http://localhost:3001/api/generate-thumbnail', {
+      let endpoint = 'http://localhost:3001/api/generate-thumbnail';
+      let requestBody = {};
+
+      switch (generationType) {
+        case 'title':
+          if (!title.trim()) {
+            setError('Please enter a title first');
+            return;
+          }
+          endpoint = 'http://localhost:3001/api/generate-thumbnail';
+          requestBody = { title };
+          break;
+
+        case 'image':
+          if (!selectedFile) {
+            setError('Please select an image first');
+            return;
+          }
+          if (!imageText.trim()) {
+            setError('Please enter text for the image');
+            return;
+          }
+          
+          // Convert file to base64
+          const reader = new FileReader();
+          const imageUrl = await new Promise((resolve) => {
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(selectedFile);
+          });
+          
+          endpoint = 'http://localhost:3001/api/generate-from-image';
+          requestBody = { 
+            imageUrl,
+            imageText 
+          };
+          break;
+
+        case 'youtube':
+          if (!youtubeUrl) {
+            setError('Please enter a YouTube URL');
+            return;
+          }
+          if (!imageText.trim()) {
+            setError('Please enter custom text for the thumbnail');
+            return;
+          }
+          endpoint = 'http://localhost:3001/api/generate-from-youtube';
+          requestBody = { 
+            youtubeUrl,
+            customText: imageText 
+          };
+          break;
+      }
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -82,30 +131,38 @@ export function Dashboard() {
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate thumbnails');
       }
-      
-      if (!data.success || !Array.isArray(data.images) || data.images.length === 0) {
-        throw new Error('No valid images in API response');
+
+      if (!data.success) {
+        throw new Error('API request failed');
       }
 
-      const newThumbnails = data.images.map((url, index) => ({
-        id: Date.now() + index,
-        url: `http://localhost:3001${url}`,
-        style: `Style ${index + 1}`,
-        metadata: data.metadata
-      }));
+      let newThumbnails;
+      if (Array.isArray(data.images)) {
+        newThumbnails = data.images.map((url, index) => ({
+          id: Date.now() + index,
+          url: url.startsWith('http') ? url : `http://localhost:3001${url}`,
+          style: `Style ${index + 1}`,
+          metadata: data.metadata
+        }));
+      } else if (data.generatedImage) {
+        // Handle old response format for backward compatibility
+        newThumbnails = [{
+          id: Date.now(),
+          url: data.generatedImage,
+          style: 'Style 1',
+          metadata: data.metadata || {}
+        }];
+      } else {
+        throw new Error('No valid images in API response');
+      }
       
       setGeneratedThumbnails(prevThumbnails => [...newThumbnails, ...prevThumbnails]);
       setNewGeneratedImage(newThumbnails[0].url);
       setShowNewImagePopup(true);
       
-      // Auto-hide popup after 5 seconds
-      setTimeout(() => {
-        setShowNewImagePopup(false);
-      }, 5000);
-
-    } catch (err) {
-      console.error('Thumbnail generation error:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate thumbnails. Please try again.');
+    } catch (error) {
+      console.error('Error:', error);
+      setError(error.message || 'Failed to generate thumbnails');
     } finally {
       setIsGenerating(false);
     }
@@ -246,6 +303,17 @@ export function Dashboard() {
                   )}
                 </div>
 
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-white/80">Custom Text for Thumbnail</label>
+                  <input
+                    type="text"
+                    value={imageText}
+                    onChange={(e) => setImageText(e.target.value)}
+                    placeholder="Enter text to add to the thumbnail"
+                    className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                  />
+                </div>
+
                 {/* YouTube Preview */}
                 <div className="aspect-video rounded-xl border border-white/10 bg-white/5 overflow-hidden">
                   {youtubePreview ? (
@@ -268,7 +336,12 @@ export function Dashboard() {
         {/* Generate Button */}
         <Button 
           onClick={generateThumbnails}
-          disabled={isGenerating || (generationType === 'title' && !title.trim())}
+          disabled={
+            isGenerating || 
+            (generationType === 'title' && !title.trim()) ||
+            (generationType === 'youtube' && (!youtubeUrl.trim() || !imageText.trim())) ||
+            (generationType === 'image' && (!selectedFile || !imageText.trim()))
+          }
           className="w-full mb-8" 
           containerClassName="w-full"
         >
